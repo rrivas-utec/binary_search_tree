@@ -68,6 +68,22 @@ public:
             }
             return *this;
         }
+        iterator& operator--() {
+            if (node_->left != nullptr) {
+                node_ = node_->left;
+                while (node_->right != nullptr) {
+                    node_ = node_->right;
+                }
+            } else {
+                auto parent = node_->parent;
+                while (parent != nullptr && node_ == parent->left) {
+                    node_ = parent;
+                    parent = parent->parent;
+                }
+                node_ = parent;
+            }
+            return *this;
+        }
     };
 
     iterator insert(ItemType<KeyType, ValueType> item) {
@@ -75,10 +91,10 @@ public:
         Node<KeyType, ValueType>* parent = nullptr;
         while (*walker != nullptr) {
             parent = *walker;
-            if (comp(item.first, (*walker)->item.first) == true) {
+            if (comp_(item.first, (*walker)->item.first) == true) {
                 walker = &((*walker)->left);
             }
-            else if (comp((*walker)->item.first, item.first) == true) {
+            else if (comp_((*walker)->item.first, item.first) == true) {
                 walker = &((*walker)->right);
             }
             else {
@@ -87,16 +103,18 @@ public:
             }
         }
         *walker = new Node<KeyType, ValueType>(item, Color::Red, parent);
+        ++size_;
+        fix_insert(*walker);
         return iterator(*walker);
     }
 
     iterator find(KeyType key) {
         Node<KeyType, ValueType>** walker = &root_;
         while (*walker != nullptr) {
-            if (comp(key, (*walker)->item.first) == true) {
+            if (comp_(key, (*walker)->item.first) == true) {
                 walker = &((*walker)->left);
             }
-            else if (comp((*walker)->item.first, key) == true) {
+            else if (comp_((*walker)->item.first, key) == true) {
                 walker = &((*walker)->right);
             }
             else {
@@ -107,26 +125,137 @@ public:
     }
 
     iterator begin() {
-        return iterator{};
+        auto walker = root_;
+        while (walker != nullptr && walker->left != nullptr) {
+            walker = walker->left;
+        }
+        return iterator(walker);
     }
 
     iterator end() {
-        return iterator{};
+        return iterator{nullptr};
     }
 
     void clear() {
+        destroy(root_);
+        root_ = nullptr;
+        size_ = 0;
     }
 
-    size_t size() {
-        return 0;
+    [[nodiscard]] size_t size() const {
+        return size_;
     }
 
     bool empty() {
-        return false;
+        return root_ == nullptr;
     }
 private:
-    Node<KeyType, ValueType>* root_;
-    Compare comp;
+    Node<KeyType, ValueType>* root_ = nullptr;
+    Compare comp_;
+    size_t size_ = 0;
+    void destroy(Node<KeyType, ValueType>* walker) {
+        if (walker == nullptr) return;
+        destroy(walker->left);
+        destroy(walker->right);
+        delete walker;
+    }
+    void fix_insert(Node<KeyType, ValueType>* walker) {
+        while (walker != root_ && walker->parent->color == Color::Red) {
+            if (walker->parent == walker->parent->parent->left) {
+                auto uncle = walker->parent->parent->right;
+                // Regla del tio ROJO
+                if (uncle != nullptr && uncle->color == Color::Red) {
+                    uncle->color = Color::Black;
+                    walker->parent->color = Color::Black;
+                    walker->parent->parent->color = Color::Red;
+                    walker = walker->parent->parent;
+                }
+                else {
+                    if (walker == walker->parent->right) {
+                        walker = walker->parent;
+                        rotate_left(walker);
+                    }
+                    walker->parent->color = Color::Black;
+                    walker->parent->parent->color = Color::Red;
+                    rotate_right(walker->parent->parent);
+                }
+            }
+            else {
+                auto uncle = walker->parent->parent->left;
+                // Regla del tio ROJO
+                if (uncle != nullptr && uncle->color == Color::Red) {
+                    uncle->color = Color::Black;
+                    walker->parent->color = Color::Black;
+                    walker->parent->parent->color = Color::Red;
+                    walker = walker->parent->parent;
+                }
+                else {
+                    if (walker == walker->parent->left) {
+                        walker = walker->parent;
+                        rotate_right(walker);
+                    }
+                    walker->parent->color = Color::Black;
+                    walker->parent->parent->color = Color::Red;
+                    rotate_left(walker->parent->parent);
+                }
+            }
+        }
+        root_->color = Color::Black;
+    }
+    void rotate_left(Node<KeyType, ValueType>* x) {
+        // Paso #0
+        auto y = x->right;
+        // Paso #1
+        x->right = y->left;
+        // Paso #2
+        if (y->left != nullptr) {
+            y->left->parent = x;
+        }
+        // Paso #3
+        y->parent = x->parent;
+        // Paso #4
+        if (x->parent == nullptr) {
+            root_ = y;
+        }
+        // Paso #5
+        else if (x == x->parent->left) {
+            x->parent->left = y;
+        }
+        else {
+            x->parent->right = y;
+        }
+        // Paso #6
+        y->left = x;
+        // Paso #7
+        x->parent = y;
+    }
+    void rotate_right(Node<KeyType, ValueType>* x) {
+        // Paso #0
+        auto y = x->left;
+        // Paso #1
+        x->left = y->right;
+        // Paso #2
+        if (y->right != nullptr) {
+            y->right->parent = x;
+        }
+        // Paso #3
+        y->parent = x->parent;
+        // Paso #4
+        if (x->parent == nullptr) {
+            root_ = y;
+        }
+        // Paso #5
+        else if (x == x->parent->right) {
+            x->parent->right = y;
+        }
+        else {
+            x->parent->left = y;
+        }
+        // Paso #6
+        y->right = x;
+        // Paso #7
+        x->parent = y;
+    }
 };
 
 
